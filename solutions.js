@@ -95,3 +95,23 @@ function advent_3_2(list) {
         .map(item => item.charCodeAt(0) - (item == item.toLowerCase() ? 96 : 38))
         .reduce((a, c) => a + c, 0);
 }
+
+function advent_4_1(input) {
+    return input
+        .split('\n')
+        .map(duo => duo.split(',').map(range => range.split('-').map(edge => parseInt(edge))))
+        .filter(duo => 
+            duo[0][0] <= duo[1][0] && duo[0][1] >= duo[1][1] 
+            || duo[0][0] >= duo[1][0] && duo[0][1] <= duo[1][1] 
+        )
+        .length;
+}
+
+function advent_4_2(input) {
+    return input
+        .split('\n')
+        .map(duo => duo.split(',').map(range => range.split('-').map(edge => parseInt(edge))))
+        .filter(duo => duo[0][0] <= duo[1][1] && duo[0][1] >= duo[1][0])
+        .length;
+}
+

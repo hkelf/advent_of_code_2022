@@ -209,3 +209,7 @@ function advent_6_2(input) {
 
     return i + 13;
 }
+
+let advent_6_1_recursive = (input, i) => /(.).*\1/.test(input.slice(0, 4)) ? advent_6_2_recursive(input.slice(1), i+1) : i+4;
+
+let advent_6_2_recursive = (input, i) => /(.).*\1/.test(input.slice(0, 14)) ? advent_6_2_recursive(input.slice(1), i+1) : i+14;

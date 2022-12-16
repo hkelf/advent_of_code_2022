@@ -2,39 +2,8 @@ function get_point(matrix, width, height, x, y) {
     const is_oob = x < 0 || y < 0 || x >= width || y >= height;
     if (is_oob) return null;
 
-    return matrix[y * width + x];
+    return matrix[coords_to_index(width, x, y)];
 }
-
-function print_path(matrix, history, width) {
-    let result = '';
-
-    matrix.forEach((element, i) => {
-        if (i % width == 0) {
-            result += '\n';
-        }
-
-        if (history.includes(i)) {
-            if (history.indexOf(i) == history.length-1) {
-                result += '\x1b[42m' + element.val + "\x1b[0m";
-            } else {
-                result += '\x1b[32m' + element.val + "\x1b[0m";
-            }
-        } else {
-            if (element.dead_end) {
-                result += '\x1b[41m' + element.val + "\x1b[0m";
-            } else {
-                result += element.val;
-            }
-        }
-    });
-
-    console.log(result);
-    console.log("("+history.length+")");
-}
-
-/* function set_point(matrix, width, x, y, val) {
-    matrix[y * width + x] = val;
-}*/
 
 function to_coords(index, width) {
     return {
@@ -43,77 +12,60 @@ function to_coords(index, width) {
     };
 }
 
-function dijkstra_i_guess(matrix, width, height, index, history) {    
-    // DEBUG
-    // console.clear();
-    // print_path(matrix, history, width);
-    // for(let t=10000000;t--;){}
-    //
-    
-    const {x:x, y:y} = to_coords(index, width);
-    
-    const current_point = get_point(matrix, width, height, x, y);
-
-    if (current_point.val == 'E') {
-        // console.log('Path found', ... history);
-        return history;
-    }
-
-    const shortests_list = [];
-
-    if (current_point.n) {
-        const target = get_point(matrix, width, height, x, y - 1);
-        if (!target.dead_end && !history.includes(target.index)) {
-            shortests_list.push(dijkstra_i_guess(matrix, width, height, target.index, history.concat(index)));
-        } else {
-            // console.log('loop', ... history.concat(index));
-        }
-    }
-
-    if (current_point.s) {
-        const target = get_point(matrix, width, height, x, y + 1);
-        if (!target.dead_end && !history.includes(target.index)) {
-            shortests_list.push(dijkstra_i_guess(matrix, width, height, target.index, history.concat(index)));
-        } else {
-            // console.log('loop', ... history.concat(index));
-        }
-    }
-
-    if (current_point.w) {
-        const target = get_point(matrix, width, height, x - 1, y);
-        if (!target.dead_end && !history.includes(target.index)) {
-            shortests_list.push(dijkstra_i_guess(matrix, width, height, target.index, history.concat(index)));
-        } else {
-            // console.log('loop', ... history.concat(index));
-        }
-    }
-
-    if (current_point.e) {
-        const target = get_point(matrix, width, height, x + 1, y);
-        if (!target.dead_end && !history.includes(target.index)) {
-            shortests_list.push(dijkstra_i_guess(matrix, width, height, target.index, history.concat(index)));
-        } else {
-            // console.log('loop', ... history.concat(index));
-        }
-    }
-
-    const sorted = shortests_list.filter(h => h).sort((history1, history2) => history1.length - history2.length);
-
-    if (sorted.length == 0) {
-        current_point.dead_end = true;
-        return null;
-    }
-
-    return sorted[0];
+function coords_to_index(width, x, y) {
+    return y * width + x;
 }
 
-function advent_12_1(input) {
+function dijkstra(ro_graph, source, target) {
+    const graph = ro_graph.slice();
+    const distances = graph.map(_ => Infinity);
+    const previous = graph.map(_ => null);
+
+    distances[source] = 0;
+
+    while (graph.filter(e => e != null).length) {
+        const index = graph
+            .reduce((acc, _, idx) => {
+                if (graph[idx] == null) return acc;
+                if (acc == null) return idx;
+
+                return distances[acc] < distances[idx] ? acc : idx;
+            }, null);
+
+        if (index == target) break;
+
+        const node_to_check = graph[index];
+        graph[index] = null;
+
+        node_to_check.neighbors.filter(n => graph[n] != null).forEach(n => {
+            const tentative = distances[index] + 1;
+            if (tentative < distances[n]) {
+                distances[n] = tentative;
+                previous[n] = index;
+            }
+        });
+    }
+
+    return (function rec_path(index, accumulator=[]) {
+        if (previous[index] == null) return accumulator;
+        return rec_path(previous[index], accumulator.concat(index))
+    }) (target);
+}
+
+function get_elevation(value) {
+    if (value == 'S') return 'a'.charCodeAt(0);
+    if (value == 'E') return 'z'.charCodeAt(0);
+
+    return value.charCodeAt(0);
+}
+
+function get_graph(input) {
     const width = input.split('\n')[0].length;
     const height = input.split('\n').length;
 
     let index_S, index_E;
 
-    const graph_matrix = input
+    const graph = input
         .replace(/\n/g, '')
         .split('')
         .map((point, index, self) => {
@@ -125,96 +77,75 @@ function advent_12_1(input) {
             
             if (point == 'S') index_S = index;
             if (point == 'E') index_E = index;
+            let neighbors = [];
 
-            const point_val = point.charCodeAt(0);
+            const point_value = get_elevation(point);
+
+            if (n != null && get_elevation(n) - point_value <= 1) neighbors.push(coords_to_index(width, x, y - 1));
+            if (s != null && get_elevation(s) - point_value <= 1) neighbors.push(coords_to_index(width, x, y + 1));
+            if (w != null && get_elevation(w) - point_value <= 1) neighbors.push(coords_to_index(width, x - 1, y));
+            if (e != null && get_elevation(e) - point_value <= 1) neighbors.push(coords_to_index(width, x + 1, y));
 
             return {
-                dead_end: false,
                 x: x,
                 y: y,
                 index: index,
                 val: point,
-                n: n == null ? 0 : Number(point == 'S' && n.charCodeAt(0) - 'a'.charCodeAt(0) <= 1 || point =='z' && n == 'E' || point.toLowerCase() == point && n.toLowerCase() == n && n.charCodeAt(0) - point_val <= 1),
-                s: s == null ? 0 : Number(point == 'S' && s.charCodeAt(0) - 'a'.charCodeAt(0) <= 1 || point =='z' && s == 'E' || point.toLowerCase() == point && s.toLowerCase() == s && s.charCodeAt(0) - point_val <= 1),
-                w: w == null ? 0 : Number(point == 'S' && w.charCodeAt(0) - 'a'.charCodeAt(0) <= 1 || point =='z' && w == 'E' || point.toLowerCase() == point && w.toLowerCase() == w && w.charCodeAt(0) - point_val <= 1),
-                e: e == null ? 0 : Number(point == 'S' && e.charCodeAt(0) - 'a'.charCodeAt(0) <= 1 || point =='z' && e == 'E' || point.toLowerCase() == point && e.toLowerCase() == e && e.charCodeAt(0) - point_val <= 1)
+                neighbors: neighbors
             };
         });
 
-    const path = dijkstra_i_guess(graph_matrix, width, height, index_S, []);
-
-    console.log(
-        path
-            .map(i => to_coords(i, width))
-            .map(p => get_point(graph_matrix, width, height, p.x, p.y))
-            .map(p => `${p.val}(${p.x},${p.y})`)
-    );
-
-    print_path(graph_matrix, path, width);
-
-    return path.length;
+    return {
+        index_S: index_S,
+        index_E: index_E,
+        width: width,
+        height: height,
+        graph: graph
+    };
 }
 
-const test_input = `Sabqponm
-abcryxxl
-accszExk
-acctuvwj
-abdefghi`;
+function advent_12_1(input) {
+    const {
+        index_S: index_S,
+        index_E: index_E,
+        width: width,
+        graph: graph
+    } = get_graph(input);
 
-const test_input_2 = `Saaaccaaccccc
-baaccaaaaaacc
-baccccaaaaacc
-baacaaaaaaacc
-baaaaaaaaaaac
-bcaaaaaaaaaac
-bcccccaaacacc
-baccccaaccccc
-baaaccccacccc
-baaaccccaaaca
-baacccccaaaaa
-baaacccEaaaaa
-bccccccaaaaaa`;
+    const dijkstra_result = dijkstra(graph, index_S, index_E);
 
-const input = `abaaaaacaaaacccccccccaaaaaaccccccccccccccccccccccccccccccccccaaaaaa
-abaaaaacaaaaccccaaaaaaaaaacccccccccccccccccccccccccccccccccccaaaaaa
-abaaacccaaaaccccaaaaaaaaaaacccaacccccccccccaacccccccccccccccccaaaaa
-abaaaacccaacccccaaaaaaaaaaaaaaaaacccccccccccacccccccccccccccccccaaa
-abacaacccccccccccaaaaaaaaaaaaaaaaccccccccccaacccccccccccccccccccaaa
-abcccacccccccccccaaaaaaaccaaaaaaaccccccccccclllcccccacccccccccccaac
-abccccccccccccccccaaaaaccccccccccccccccccclllllllcccccccccccccccccc
-abaaacccccccccccccaaaaaccccccccccccccccaakklllllllcccccccccaacccccc
-abaaacccccccccccacccaaaccccccccccccccccakkklpppllllccddaaacaacccccc
-abaaacccaaacccccaacaaaccccccccccccccccckkkkpppppllllcddddaaaacccccc
-abaacccaaaacccccaaaaaccccccccccccccccckkkkpppppppllmmddddddaaaacccc
-abaaaccaaaaccccccaaaaaacaaacccccccccckkkkpppuuuppplmmmmdddddaaacccc
-abaaacccaaaccccaaaaaaaacaaaaccccccckkkkkoppuuuuuppqmmmmmmdddddacccc
-abcccccccccccccaaaaaaaacaaaacccccjkkkkkooppuuuuuuqqqmmmmmmmddddcccc
-abccccccccccccccccaaccccaaaccccjjjjkoooooouuuxuuuqqqqqqmmmmmddecccc
-abacaaccccccccccccaacccccccccccjjjjoooooouuuxxxuvvqqqqqqqmmmeeecccc
-abaaaacccccccacccaccccccccccccjjjjoootuuuuuuxxxyvvvvvqqqqmmmeeecccc
-abaaaaacccccaaacaaacccccccccccjjjoooottuuuuuxxyyvvvvvvvqqmnneeecccc
-abaaaaaccaaaaaaaaaaccccccccaccjjjooottttxxxxxxyyyyyyvvvqqnnneeecccc
-abaaaccccaaaaaaaaaacccccccaaccjjjoootttxxxxxxxyyyyyyvvqqqnnneeecccc
-SbcaaccccaaaaaaaaaaccccaaaaacajjjnnntttxxxxEzzzyyyyvvvrrqnnneeccccc
-abcccccccaaaaaaaaaaacccaaaaaaaajjjnnntttxxxxyyyyyvvvvrrrnnneeeccccc
-abcccccccaaaaaaaaaaacccccaaaaccjjjnnnnttttxxyyyyywvvrrrnnneeecccccc
-abcccccccccaaaaaaccaccccaaaaaccciiinnnnttxxyyyyyyywwrrnnnneeecccccc
-abccccccccccccaaacccccccaacaaaccciiinnnttxxyywwyyywwrrnnnffeccccccc
-abccccccccccccaaacccccccaccaaaccciiinnnttwwwwwwwwwwwrrrnnfffccccccc
-abccccccccccccccccccccccccccccccciiinnnttwwwwsswwwwwrrrnnfffccccccc
-abaaaccaaccccccccccccccccccccccccciinnnttswwwssswwwwrrroofffacccccc
-abaaccaaaaaacccccccccccccccccaaacciinnntssssssssssrrrrooofffacccccc
-abaccccaaaaacccccccaaacccccccaaaaciinnnssssssmmssssrrrooofffacccccc
-abaacaaaaaaacccccccaaaaccccccaaaaciiinmmmssmmmmmoosroooooffaaaacccc
-abaaaaaaaaaaaccccccaaaaccccccaaacciiimmmmmmmmmmmoooooooofffaaaacccc
-abcaaaaaaaaaaccccccaaaaccccccccccccihhmmmmmmmhggoooooooffffaaaccccc
-abcccccaaacaccccccccaaccccccccccccchhhhhhhhhhhggggggggggffaaacccccc
-abaccccaacccccccccccaaaccccccccccccchhhhhhhhhhgggggggggggcaaacccccc
-abaaaccccaccccccccccaaaacccaacccccccchhhhhhhaaaaaggggggcccccccccccc
-abaaaccccaaacaaaccccaaaacaaaacccccccccccccccaaaacccccccccccccccaaac
-abaacccccaaaaaaaccccaaaaaaaaacccccccccccccccaaacccccccccccccccccaaa
-abaaaccccaaaaaaccccaaaaaaaaccccccccccccccccccaacccccccccccccccccaaa
-abccccccaaaaaaaaaaaaaaaaaaacccccccccccccccccaaccccccccccccccccaaaaa
-abcccccaaaaaaaaaaaaaaaaaaaaacccccccccccccccccccccccccccccccccaaaaaa`;
+    return dijkstra_result.length;
+}
 
-console.log(advent_12_1(test_input));
+function advent_12_2(input) {
+    const {
+        index_E: index_E,
+        width: width,
+        height: height,
+        graph: graph
+    } = get_graph(input);
+
+    const starting_indexes = new Set();
+    for(let i=0; i<width; ++i) {
+        const top_point = get_point(graph, width, height, i, 0);
+        const bottom_point = get_point(graph, width, height, i, height - 1);
+
+        if (['S', 'a'].includes(top_point.val)) starting_indexes.add(top_point.index);
+        if (['S', 'a'].includes(bottom_point.val)) starting_indexes.add(bottom_point.index);
+    }
+
+    for(let i=0; i<height; ++i) {
+        const left_point = get_point(graph, width, height, 0, i);
+        const right_point = get_point(graph, width, height, width - 1, i);
+
+        if (['S', 'a'].includes(left_point.val)) starting_indexes.add(left_point.index);
+        if (['S', 'a'].includes(right_point.val)) starting_indexes.add(right_point.index);
+    }
+    
+    return Math.min(... Array.from(starting_indexes)
+    .map(i => [i, dijkstra(graph, i, index_E)]).map(tuple => tuple[1]).map(path => path.length).filter(l => l));
+}
+
+// https://adventofcode.com/2022/day/12/input
+// console.log(advent_12_1(input));
+// console.log(advent_12_2(input));
